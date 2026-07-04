@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>PaintRush</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#132229;
+    --bg2:#0e1a1f;
+    --surface:#1c323b;
+    --surface2:#24404a;
+    --ink:#f4efe1;
+    --muted:#8fadb3;
+    --coral:#ff6b5e;
+    --yellow:#ffd166;
+    --teal:#4dd9c4;
+    --blue:#5b8def;
+    --violet:#b28dff;
+    --danger:#ff5a5a;
+    --radius:18px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; font-family:'Nunito',sans-serif; color:var(--ink);
+    background:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.035), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.035), transparent 40%),
+      linear-gradient(180deg,var(--bg2),var(--bg));
+    min-height:100dvh; display:flex; justify-content:center;
+    overflow-x:hidden;
+  }
+  #app{ width:100%; max-width:480px; min-height:100dvh; display:flex; flex-direction:column; position:relative; }
+  @media (min-width:640px){
+    #app{ max-width:620px; }
+  }
+  @media (min-width:900px){
+    #app{ max-width:720px; }
+  }
+  .screen{ display:none; flex-direction:column; flex:1; padding:18px 16px 22px; animation:fadeIn .25s ease; }
+  .screen.active{ display:flex; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  .logo{
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:38px; text-align:center;
+    letter-spacing:1px; margin:18px 0 2px;
+  }
+  .logo span:nth-child(1){color:var(--coral);}
+  .logo span:nth-child(2){color:var(--yellow);}
+  .logo span:nth-child(3){color:var(--teal);}
+  .tagline{ text-align:center; color:var(--muted); font-size:13.5px; margin-bottom:26px; font-weight:600;}
+
+  .card{
+    background:var(--surface); border-radius:var(--radius); padding:16px;
+    border:2px solid var(--surface2); position:relative;
+  }
+  .card + .card{ margin-top:14px; }
+  .chalk-border{ border-style:dashed; border-color:rgba(244,239,225,0.18); }
+
+  label.field-label{ font-size:12.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; display:block;}
+  input[type=text], input[type=password], select, textarea{
+    width:100%; background:var(--bg2); border:2px solid var(--surface2); color:var(--ink);
+    border-radius:12px; padding:12px 14px; font-size:15px; font-family:inherit; font-weight:600;
+    outline:none; transition:border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus{ border-color:var(--teal); }
+  input::placeholder{ color:var(--muted); font-weight:600; }
+
+  .btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    border:none; border-radius:14px; padding:14px 18px; font-family:'Baloo 2',sans-serif;
+    font-weight:700; font-size:16.5px; cursor:pointer; color:#12222a;
+    transition:transform .08s ease, filter .15s; width:100%;
+  }
+  .btn:active{ transform:scale(0.97); }
+  .btn-primary{ background:linear-gradient(135deg,var(--teal),#3fc2ad); }
+  .btn-accent{ background:linear-gradient(135deg,var(--yellow),#ffb84d); }
+  .btn-coral{ background:linear-gradient(135deg,var(--coral),#ff8a75); color:#2a1210;}
+  .btn-ghost{ background:var(--surface2); color:var(--ink); }
+  .btn-danger{ background:linear-gradient(135deg,var(--danger),#c73e3e); color:#fff; }
+  .btn-sm{ padding:9px 12px; font-size:13.5px; border-radius:10px; width:auto; }
+  .btn[disabled]{ opacity:.45; pointer-events:none; }
+
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+  .center-text{ text-align:center; }
+  .muted{ color:var(--muted); }
+  .small{ font-size:12.5px; }
+  .link-btn{ background:none; border:none; color:var(--muted); font-family:inherit; font-weight:700; font-size:13px; text-decoration:underline; cursor:pointer; padding:6px;}
+
+  /* Home */
+  #screen-home .card{ margin-top:0; }
+  .home-actions{ margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .divider-or{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; font-weight:700; margin:14px 0; }
+  .divider-or::before,.divider-or::after{ content:""; flex:1; height:1px; background:var(--surface2); }
+
+  /* Lobby */
+  .code-pill{
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:30px; letter-spacing:6px;
+    background:var(--bg2); border:2px dashed var(--yellow); border-radius:14px;
+    padding:12px 10px; text-align:center; color:var(--yellow); margin:6px 0 4px;
+  }
+  .players-list{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .player-row{
+    display:flex; align-items:center; gap:10px; background:var(--bg2); border-radius:12px; padding:9px 12px;
+  }
+  .avatar{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:15px; color:#12222a; flex-shrink:0; }
+  .player-name{ font-weight:700; flex:1; }
+  .player-score{ font-weight:800; color:var(--yellow); font-size:14px; }
+  .host-tag{ font-size:10px; background:var(--violet); color:#1c1230; font-weight:800; border-radius:6px; padding:2px 6px; margin-left:6px;}
+
+  /* Game screen */
+  #screen-game{ padding:10px 10px 12px; }
+  .game-topbar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .round-badge{ font-size:12px; font-weight:800; color:var(--muted); background:var(--surface); border-radius:10px; padding:6px 10px; }
+  .timer-ring{
+    width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Baloo 2',sans-serif; font-weight:800; font-size:16px; flex-shrink:0;
+    background:conic-gradient(var(--teal) calc(var(--pct,100)*1%), var(--surface2) 0);
+  }
+  .timer-ring .inner{ width:36px; height:36px; border-radius:50%; background:var(--bg2); display:flex; align-items:center; justify-content:center; }
+  .word-banner{
+    text-align:center; font-family:'Baloo 2',sans-serif; font-size:22px; font-weight:700;
+    letter-spacing:4px; background:var(--surface); border-radius:12px; padding:8px 6px; margin-bottom:8px; min-height:20px;
+  }
+  .word-banner.mine{ color:var(--yellow); letter-spacing:1px; }
+  .drawer-note{ text-align:center; font-size:12.5px; color:var(--muted); font-weight:700; margin-bottom:6px; }
+
+  #canvasWrap{ position:relative; width:100%; aspect-ratio:1/1; background:#f4efe1; border-radius:14px; overflow:hidden; touch-action:none; border:3px solid var(--surface2);}
+  #drawCanvas{ width:100%; height:100%; display:block; }
+
+  .toolbar{ display:flex; align-items:center; gap:8px; margin-top:8px; overflow-x:auto; padding-bottom:2px;}
+  .color-dot{ width:28px; height:28px; border-radius:50%; flex-shrink:0; border:2px solid rgba(255,255,255,0.25); cursor:pointer; }
+  .color-dot.active{ border-color:#fff; transform:scale(1.15); }
+  .tool-btn{ flex-shrink:0; background:var(--surface2); border:none; border-radius:10px; padding:7px 10px; color:var(--ink); font-weight:700; font-size:12.5px; cursor:pointer;}
+  .tool-btn.active{ background:var(--teal); color:#12222a; }
+
+  .chat-panel{ margin-top:10px; background:var(--surface); border-radius:14px; padding:10px; display:flex; flex-direction:column; height:170px; }
+  .chat-scroll{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:5px; padding-right:2px; }
+  .chat-msg{ font-size:13px; font-weight:600; }
+  .chat-msg .nm{ color:var(--teal); font-weight:800; }
+  .chat-msg.correct{ color:var(--yellow); font-weight:800; }
+  .chat-msg.system{ color:var(--muted); font-style:italic; }
+  .guess-input-row{ display:flex; gap:8px; margin-top:8px; }
+  .guess-input-row input{ flex:1; padding:9px 12px; font-size:14px; }
+
+  .scoreboard-strip{ display:flex; gap:6px; overflow-x:auto; margin-top:8px; padding-bottom:2px;}
+  .score-chip{ flex-shrink:0; background:var(--surface); border-radius:10px; padding:6px 10px; font-size:12px; font-weight:700; display:flex; gap:6px; align-items:center; }
+
+  /* Word choice modal */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(10,15,18,0.72); display:none; align-items:flex-end; justify-content:center; z-index:50; }
+  .modal-overlay.active{ display:flex; }
+  .modal-sheet{ width:100%; max-width:480px; background:var(--surface); border-radius:22px 22px 0 0; padding:22px 18px 26px; }
+  .word-choice-btn{ width:100%; text-align:left; background:var(--bg2); border:2px solid var(--surface2); color:var(--ink);
+    border-radius:12px; padding:14px 16px; font-family:'Baloo 2',sans-serif; font-weight:700; font-size:18px; margin-top:10px; cursor:pointer;}
+  .word-choice-btn:active{ background:var(--surface2); }
+
+  /* End screen */
+  .podium-row{ display:flex; align-items:center; gap:10px; background:var(--bg2); border-radius:12px; padding:10px 12px; margin-top:8px;}
+  .rank{ font-family:'Baloo 2',sans-serif; font-weight:800; font-size:18px; width:26px; color:var(--muted); }
+  .rank.r1{ color:var(--yellow); } .rank.r2{ color:#cfd8dc;} .rank.r3{ color:#d99a5c;}
+
+  /* Admin */
+  .word-item{ display:flex; align-items:center; gap:8px; background:var(--bg2); border-radius:10px; padding:8px 10px; margin-top:6px; }
+  .word-item .cat{ font-size:10px; background:var(--surface2); color:var(--muted); border-radius:6px; padding:2px 6px; font-weight:800; flex-shrink:0;}
+  .word-item .wtext{ flex:1; font-weight:700; font-size:14px; }
+  .word-item button{ background:none; border:none; color:var(--danger); font-size:18px; cursor:pointer; padding:2px 6px;}
+  .admin-list{ max-height:280px; overflow-y:auto; margin-top:4px; }
+  .top-nav{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .back-arrow{ background:var(--surface); border:none; color:var(--ink); width:38px; height:38px; border-radius:10px; font-size:18px; cursor:pointer; flex-shrink:0;}
+  .top-title{ font-family:'Baloo 2',sans-serif; font-weight:700; font-size:19px; }
+
+  .toast{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surface2); color:var(--ink);
+    padding:10px 18px; border-radius:12px; font-weight:700; font-size:13.5px; z-index:100; opacity:0; pointer-events:none; transition:opacity .2s, bottom .2s; box-shadow:0 6px 18px rgba(0,0,0,0.35); }
+  .toast.show{ opacity:1; bottom:26px; }
+
+  ::-webkit-scrollbar{ width:5px; height:5px; }
+  ::-webkit-scrollbar-thumb{ background:var(--surface2); border-radius:4px; }
+
+  /* Abstract paint-splash background art */
+  #bgArt{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+  #bgArt .blob{ position:absolute; filter:blur(38px); opacity:0.35; mix-blend-mode:screen; will-change:transform; }
+  #bgArt .blob.b1{ width:260px; height:220px; top:-60px; left:-70px; background:var(--coral);
+    border-radius:58% 42% 65% 35% / 45% 55% 45% 55%; animation:drift1 26s ease-in-out infinite; }
+  #bgArt .blob.b2{ width:220px; height:260px; top:8%; right:-90px; background:var(--blue);
+    border-radius:40% 60% 55% 45% / 55% 40% 60% 45%; animation:drift2 32s ease-in-out infinite; }
+  #bgArt .blob.b3{ width:300px; height:240px; bottom:-80px; left:-60px; background:var(--teal);
+    border-radius:65% 35% 40% 60% / 40% 60% 40% 60%; animation:drift3 30s ease-in-out infinite; }
+  #bgArt .blob.b4{ width:200px; height:200px; bottom:6%; right:-70px; background:var(--yellow);
+    border-radius:50% 50% 42% 58% / 58% 42% 58% 42%; animation:drift1 24s ease-in-out infinite reverse; }
+  #bgArt .blob.b5{ width:180px; height:180px; top:42%; left:38%; background:var(--violet);
+    opacity:0.22; border-radius:50%; animation:drift2 40s ease-in-out infinite; }
+  #bgArt .drip{ position:absolute; width:3px; opacity:0.16; border-radius:3px; background:linear-gradient(180deg, currentColor, transparent); }
+  #bgArt .drip1{ height:140px; top:0; left:22%; color:var(--coral); }
+  #bgArt .drip2{ height:200px; top:0; left:68%; color:var(--teal); }
+  #bgArt .drip3{ height:90px;  top:0; left:85%; color:var(--yellow); }
+  #bgArt .drip4{ height:160px; top:0; left:8%; color:var(--blue); }
+  #bgArt .splatter{ position:absolute; border-radius:50%; opacity:0.12; }
+  #bgArt .sp1{ width:10px; height:10px; top:18%; left:14%; background:var(--yellow); }
+  #bgArt .sp2{ width:6px;  height:6px;  top:64%; left:80%; background:var(--coral); }
+  #bgArt .sp3{ width:14px; height:14px; top:76%; left:22%; background:var(--teal); }
+  #bgArt .sp4{ width:8px;  height:8px;  top:30%; left:88%; background:var(--violet); }
+  #bgArt .sp5{ width:5px;  height:5px;  top:50%; left:6%;  background:var(--blue); }
+
+  @keyframes drift1{ 0%,100%{ transform:translate(0,0) rotate(0deg); } 50%{ transform:translate(16px,-14px) rotate(8deg); } }
+  @keyframes drift2{ 0%,100%{ transform:translate(0,0) rotate(0deg); } 50%{ transform:translate(-18px,12px) rotate(-6deg); } }
+  @keyframes drift3{ 0%,100%{ transform:translate(0,0) rotate(0deg); } 50%{ transform:translate(12px,16px) rotate(5deg); } }
+
+  #app{ position:relative; z-index:1; }
+  @media (prefers-reduced-motion: reduce){
+    #bgArt .blob{ animation:none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="bgArt" aria-hidden="true">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <div class="blob b4"></div>
+  <div class="blob b5"></div>
+  <div class="drip drip1"></div>
+  <div class="drip drip2"></div>
+  <div class="drip drip3"></div>
+  <div class="drip drip4"></div>
+  <div class="splatter sp1"></div>
+  <div class="splatter sp2"></div>
+  <div class="splatter sp3"></div>
+  <div class="splatter sp4"></div>
+  <div class="splatter sp5"></div>
+</div>
+<div id="app">
+
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="logo"><span>Paint</span><span>Rush</span></div>
+
+    <div class="card">
+      <label class="field-label">Ismingiz</label>
+      <input type="text" id="inpName" placeholder="Ismingizni kiriting" maxlength="16">
+    </div>
+
+    <div class="home-actions">
+      <button class="btn btn-primary" id="btnCreateLobby">➕ Yangi xona yaratish</button>
+      <div class="divider-or">yoki</div>
+      <div class="card chalk-border" style="padding:12px;">
+        <input type="text" id="inpJoinCode" placeholder="Xona kodi (masalan: 4F9K)" maxlength="6" style="text-transform:uppercase; text-align:center; letter-spacing:3px; font-weight:800;">
+        <div style="height:10px;"></div>
+        <button class="btn btn-accent" id="btnJoinLobby">🚪 Xonaga qo'shilish</button>
+      </div>
+    </div>
+
+    <div style="flex:1;"></div>
+    <div class="center-text">
+      <button class="link-btn" id="btnGoAdmin">⚙️ Admin panel</button>
+    </div>
+  </div>
+
+  <!-- LOBBY -->
+  <div class="screen" id="screen-lobby">
+    <div class="top-nav">
+      <button class="back-arrow" id="btnLeaveLobby">←</button>
+      <div class="top-title">Kutish xonasi</div>
+    </div>
+
+    <div class="card">
+      <div class="center-text muted small" style="font-weight:700;">XONA KODI — do'stlaringizga yuboring</div>
+      <div class="code-pill" id="lobbyCodeDisplay">----</div>
+      <button class="btn btn-ghost btn-sm" id="btnCopyCode" style="margin:0 auto; width:auto; padding:8px 16px;">📋 Kodni nusxalash</button>
+    </div>
+
+    <div class="card">
+      <label class="field-label">O'yinchilar (<span id="playerCount">0</span>)</label>
+      <div class="players-list" id="lobbyPlayersList"></div>
+    </div>
+
+    <div class="card" id="hostSettingsCard" style="display:none;">
+      <label class="field-label">Raundlar soni</label>
+      <select id="selRounds">
+        <option value="1">1 raund</option>
+        <option value="2" selected>2 raund</option>
+        <option value="3">3 raund</option>
+        <option value="4">4 raund</option>
+        <option value="5">5 raund</option>
+      </select>
+      <div style="height:12px;"></div>
+      <button class="btn btn-coral" id="btnStartGame">▶️ O'yinni boshlash</button>
+      <div class="small muted center-text" style="margin-top:8px;">Boshlash uchun kamida 2 o'yinchi kerak</div>
+    </div>
+    <div class="card center-text muted small" id="waitingHostNote">Xona egasi o'yinni boshlashini kuting...</div>
+  </div>
+
+  <!-- GAME -->
+  <div class="screen" id="screen-game">
+    <div class="game-topbar">
+      <div class="round-badge" id="roundBadge">Raund 1/2</div>
+      <div class="timer-ring" id="timerRing" style="--pct:100;"><div class="inner"><span id="timerText">80</span></div></div>
+    </div>
+    <div class="drawer-note" id="drawerNote">Kimdir chizmoqda...</div>
+    <div class="word-banner" id="wordBanner">— — — —</div>
+
+    <div id="canvasWrap">
+      <canvas id="drawCanvas"></canvas>
+    </div>
+
+    <div class="toolbar" id="toolbar" style="display:none;">
+      <button class="tool-btn active" id="btnToolBrush">🖌️ Kist</button>
+      <button class="tool-btn" id="btnToolFill">🪣 Zalivka</button>
+      <div class="color-dot active" data-color="#232323" style="background:#232323;"></div>
+      <div class="color-dot" data-color="#ff6b5e" style="background:#ff6b5e;"></div>
+      <div class="color-dot" data-color="#ffd166" style="background:#ffd166;"></div>
+      <div class="color-dot" data-color="#4dd9c4" style="background:#4dd9c4;"></div>
+      <div class="color-dot" data-color="#5b8def" style="background:#5b8def;"></div>
+      <div class="color-dot" data-color="#b28dff" style="background:#b28dff;"></div>
+      <div class="color-dot" data-color="#ffffff" style="background:#ffffff; border-color:#999;"></div>
+      <button class="color-dot" id="btnOpenWheel" style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red); border:2px solid rgba(255,255,255,0.4); padding:0;" title="Ko'proq ranglar"></button>
+      <button class="tool-btn" id="btnThin">Ingichka</button>
+      <button class="tool-btn active" id="btnThick">Qalin</button>
+      <button class="tool-btn" id="btnClearCanvas">🗑️ Tozalash</button>
+    </div>
+
+    <div class="scoreboard-strip" id="scoreboardStrip"></div>
+
+    <div class="chat-panel">
+      <div class="chat-scroll" id="chatScroll"></div>
+      <div class="guess-input-row" id="guessInputRow">
+        <input type="text" id="inpGuess" placeholder="So'zni shu yerga yozing...">
+        <button class="btn btn-primary btn-sm" id="btnSendGuess">Yubor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- END -->
+  <div class="screen" id="screen-end">
+    <div class="logo" style="font-size:28px;">🏆 O'yin tugadi!</div>
+    <div class="card">
+      <div id="podiumList"></div>
+    </div>
+    <div class="home-actions">
+      <button class="btn btn-primary" id="btnPlayAgain">🔁 Yana o'ynash</button>
+      <button class="btn btn-ghost" id="btnEndToHome">🏠 Bosh sahifa</button>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="screen" id="screen-admin">
+    <div class="top-nav">
+      <button class="back-arrow" id="btnAdminBack">←</button>
+      <div class="top-title">Admin panel</div>
+    </div>
+
+    <div class="card" id="adminLoginCard">
+      <label class="field-label">Admin parol</label>
+      <input type="password" id="inpAdminPass" placeholder="Parolni kiriting">
+      <div style="height:10px;"></div>
+      <button class="btn btn-accent" id="btnAdminLogin">Kirish</button>
+    </div>
+
+    <div id="adminPanelContent" style="display:none;">
+      <div class="card">
+        <label class="field-label">Yangi so'z qo'shish</label>
+        <input type="text" id="inpNewWord" placeholder="Masalan: qo'ziqorin">
+        <div style="height:8px;"></div>
+        <select id="selNewCategory">
+          <option value="Umumiy">Umumiy</option>
+          <option value="Hayvonlar">Hayvonlar</option>
+          <option value="Taomlar">Taomlar</option>
+          <option value="Kasblar">Kasblar</option>
+          <option value="Sport">Sport</option>
+          <option value="Transport">Transport</option>
+          <option value="Tabiat">Tabiat</option>
+          <option value="Trend">Trend / Internet</option>
+          <option value="Uy-ro'zg'or">Uy-ro'zg'or</option>
+        </select>
+        <div style="height:10px;"></div>
+        <button class="btn btn-primary" id="btnAddWord">➕ Qo'shish</button>
+      </div>
+      <div class="card">
+        <div class="row" style="align-items:center;">
+          <label class="field-label" style="margin:0;">So'zlar ro'yxati (<span id="wordTotalCount">0</span>)</label>
+          <button class="link-btn" id="btnResetWords" style="flex:0;">Standart holatga qaytarish</button>
+        </div>
+        <div class="admin-list" id="adminWordList"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="wordChoiceModal">
+  <div class="modal-sheet">
+    <div class="top-title center-text" style="margin-bottom:4px;">So'zni tanlang</div>
+    <div class="muted small center-text">Siz chizasiz, boshqalar topadi</div>
+    <div id="wordChoiceButtons"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="colorWheelModal">
+  <div class="modal-sheet center-text">
+    <div class="top-title" style="margin-bottom:12px;">🌈 Rang tanlang</div>
+    <canvas id="colorWheelCanvas" width="220" height="220" style="border-radius:50%; touch-action:none; box-shadow:0 4px 18px rgba(0,0,0,0.4);"></canvas>
+    <div style="height:16px;"></div>
+    <button class="btn btn-ghost" id="btnCloseColorWheel">Yopish</button>
+  </div>
+</div>
+
+<button id="btnFullscreen" title="To'liq ekran" style="position:fixed; top:12px; right:12px; z-index:60; width:40px; height:40px; border-radius:12px; border:none; background:rgba(28,50,59,0.85); backdrop-filter:blur(4px); color:var(--ink); font-size:18px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);">⛶</button>
+
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= Telegram WebApp init ================= */
+try{
+  if(window.Telegram && window.Telegram.WebApp){
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+    Telegram.WebApp.setHeaderColor && Telegram.WebApp.setHeaderColor('#132229');
+    Telegram.WebApp.setBackgroundColor && Telegram.WebApp.setBackgroundColor('#132229');
+  }
+}catch(e){}
+
+/* ================= Constants ================= */
+const ADMIN_PASSWORD = "ihj2026"; // shu joydan o'zingizga xos parolga o'zgartiring
+const TURN_DURATION = 80; // soniya
+const CHOOSING_DURATION = 15; // soniya
+const AVATAR_COLORS = ["#ff6b5e","#ffd166","#4dd9c4","#5b8def","#b28dff","#7ee787","#ff9ecf","#ffa94d"];
+const DEFAULT_WORDS = [
+["mushuk","Hayvonlar"],["it","Hayvonlar"],["ot","Hayvonlar"],["tovuq","Hayvonlar"],["sigir","Hayvonlar"],
+["quyon","Hayvonlar"],["fil","Hayvonlar"],["sher","Hayvonlar"],["ayiq","Hayvonlar"],["baliq","Hayvonlar"],
+["chumoli","Hayvonlar"],["kalamush","Hayvonlar"],["tulki","Hayvonlar"],["bo'ri","Hayvonlar"],["ilon","Hayvonlar"],
+["qurbaqa","Hayvonlar"],["burgut","Hayvonlar"],["tuya","Hayvonlar"],["echki","Hayvonlar"],["qo'y","Hayvonlar"],
+["osh","Taomlar"],["lag'mon","Taomlar"],["manti","Taomlar"],["somsa","Taomlar"],["shashlik","Taomlar"],
+["non","Taomlar"],["choy","Taomlar"],["tortilgan go'sht","Taomlar"],["salat","Taomlar"],["muzqaymoq","Taomlar"],
+["shirinlik","Taomlar"],["qovurilgan kartoshka","Taomlar"],["pitsa","Taomlar"],["burger","Taomlar"],["tort","Taomlar"],
+["choyxona","Taomlar"],["qovun","Taomlar"],["tarvuz","Taomlar"],["uzum","Taomlar"],["anor","Taomlar"],
+["shifokor","Kasblar"],["o'qituvchi","Kasblar"],["haydovchi","Kasblar"],["duradgor","Kasblar"],["dasturchi","Kasblar"],
+["rassom","Kasblar"],["oshpaz","Kasblar"],["politsiya","Kasblar"],["o't o'chiruvchi","Kasblar"],["sartarosh","Kasblar"],
+["bank xodimi","Kasblar"],["dehqon","Kasblar"],["quruvchi","Kasblar"],["blogger","Trend"],["sotuvchi","Kasblar"],
+["futbol","Sport"],["basketbol","Sport"],["kurash","Sport"],["boks","Sport"],["shaxmat","Sport"],
+["suzish","Sport"],["velosiped","Sport"],["yugurish","Sport"],["voleybol","Sport"],["tennis","Sport"],
+["mashina","Transport"],["avtobus","Transport"],["poyezd","Transport"],["samolyot","Transport"],["elektrosamokat","Transport"],
+["kema","Transport"],["metro","Transport"],["taksi","Transport"],["moped","Transport"],["traktor","Transport"],
+["tog'","Tabiat"],["daryo","Tabiat"],["dengiz","Tabiat"],["o'rmon","Tabiat"],["cho'l","Tabiat"],
+["yomg'ir","Tabiat"],["qor","Tabiat"],["kamalak","Tabiat"],["quyosh","Tabiat"],["oy","Tabiat"],
+["yulduz","Tabiat"],["vulqon","Tabiat"],["ko'l","Tabiat"],["bulut","Tabiat"],["chaqmoq","Tabiat"],
+["televizor","Uy-ro'zg'or"],["muzlatgich","Uy-ro'zg'or"],["divan","Uy-ro'zg'or"],["oyna","Uy-ro'zg'or"],["chiroq","Uy-ro'zg'or"],
+["stol","Uy-ro'zg'or"],["kitob","Uy-ro'zg'or"],["telefon","Uy-ro'zg'or"],["soat","Uy-ro'zg'or"],["gilam","Uy-ro'zg'or"],
+["meme","Trend"],["reels","Trend"],["stiker","Trend"],["stream","Trend"],["mem sahifa","Trend"],
+["treyler","Trend"],["hayp","Trend"],["influencer","Trend"],["vayb","Trend"],["kringe","Trend"],
+["sneaker","Trend"],["podkast","Trend"],["shorts video","Trend"],["chat bot","Trend"],["viral video","Trend"]
+];
+
+/* ================= State ================= */
+let myId = "p_" + Math.random().toString(36).slice(2,10);
+let myName = "";
+let myColor = AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
+let roomCode = "";
+let isHost = false;
+let pollTimer = null;
+let authoritativeTimer = null;
+let lastLobby = null;
+let renderedStrokeCount = 0;
+let isAdminAuthed = false;
+let drawing = false;
+let currentStroke = null;
+let brushColor = "#232323";
+let brushSize = 0.016;
+let chosenWordLocalReveal = ""; // local convenience
+
+const screens = ["home","lobby","game","end","admin"];
+function showScreen(name){
+  screens.forEach(s => document.getElementById("screen-"+s).classList.toggle("active", s===name));
+}
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+/* ================= Firebase init ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyB2ha-V3xVPlhDOpHqqepw4kJHJYb7EJzk",
+  authDomain: "paintrush-ece7a.firebaseapp.com",
+  databaseURL: "https://paintrush-ece7a-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "paintrush-ece7a",
+  storageBucket: "paintrush-ece7a.firebasestorage.app",
+  messagingSenderId: "572929697250",
+  appId: "1:572929697250:web:5e72adabd1466f70a385bb"
+};
+firebase.initializeApp(firebaseConfig);
+const fbdb = firebase.database();
+
+/* ================= Storage helpers (Firebase-backed) =================
+   Kept the same sGet/sSet(key, value, shared) signature as before so the
+   rest of the app logic below didn't need to change — only the backend did. */
+function pathFor(key){ return "kv/" + key.replace(/[.#$\[\]]/g, "_"); }
+async function sGet(key, shared){
+  try{
+    const snap = await fbdb.ref(pathFor(key)).get();
+    return snap.exists() ? snap.val() : null;
+  }catch(e){ console.error("sGet error:", e); return null; }
+}
+async function sSet(key, value, shared){
+  try{ await fbdb.ref(pathFor(key)).set(value); return true; }
+  catch(e){ console.error("sSet error:", e); return false; }
+}
+/* Realtime listener helper — used for the lobby so updates push instantly
+   instead of waiting for the next poll. */
+function watchKey(key, callback){
+  const ref = fbdb.ref(pathFor(key));
+  ref.on("value", snap => callback(snap.exists() ? snap.val() : null));
+  return ref;
+}
+function unwatch(ref){ if(ref) ref.off(); }
+
+/* ================= Words / Admin ================= */
+async function ensureWordsSeeded(){
+  const existing = await sGet("words:list", true);
+  if(!existing){
+    const seeded = DEFAULT_WORDS.map((w,i)=>({id:"w"+i+"_"+Date.now(), word:w[0], category:w[1]}));
+    await sSet("words:list", JSON.stringify(seeded), true);
+    return seeded;
+  }
+  try{ return JSON.parse(existing); }catch(e){ return []; }
+}
+async function getWords(){
+  const raw = await sGet("words:list", true);
+  if(!raw) return await ensureWordsSeeded();
+  try{ return JSON.parse(raw); }catch(e){ return []; }
+}
+async function saveWords(list){ await sSet("words:list", JSON.stringify(list), true); }
+
+document.getElementById("btnGoAdmin").onclick = ()=> showScreen("admin");
+document.getElementById("btnAdminBack").onclick = ()=> showScreen("home");
+document.getElementById("btnAdminLogin").onclick = async ()=>{
+  const pass = document.getElementById("inpAdminPass").value;
+  if(pass === ADMIN_PASSWORD){
+    isAdminAuthed = true;
+    document.getElementById("adminLoginCard").style.display = "none";
+    document.getElementById("adminPanelContent").style.display = "block";
+    await renderAdminWords();
+  } else {
+    toast("❌ Parol noto'g'ri");
+  }
+};
+async function renderAdminWords(){
+  const words = await getWords();
+  document.getElementById("wordTotalCount").textContent = words.length;
+  const list = document.getElementById("adminWordList");
+  list.innerHTML = "";
+  words.slice().reverse().forEach(w=>{
+    const div = document.createElement("div");
+    div.className = "word-item";
+    div.innerHTML = `<span class="cat">${w.category}</span><span class="wtext">${escapeHtml(w.word)}</span><button data-id="${w.id}">✕</button>`;
+    div.querySelector("button").onclick = async ()=>{
+      const words2 = await getWords();
+      const filtered = words2.filter(x=>x.id!==w.id);
+      await saveWords(filtered);
+      await renderAdminWords();
+      toast("O'chirildi");
+    };
+    list.appendChild(div);
+  });
+}
+document.getElementById("btnAddWord").onclick = async ()=>{
+  const inp = document.getElementById("inpNewWord");
+  const val = inp.value.trim();
+  if(!val){ toast("So'z kiriting"); return; }
+  const cat = document.getElementById("selNewCategory").value;
+  const words = await getWords();
+  words.push({id:"w_"+Date.now()+"_"+Math.random().toString(36).slice(2,6), word:val, category:cat});
+  await saveWords(words);
+  inp.value = "";
+  await renderAdminWords();
+  toast("✅ Qo'shildi: " + val);
+};
+document.getElementById("btnResetWords").onclick = async ()=>{
+  const seeded = DEFAULT_WORDS.map((w,i)=>({id:"w"+i+"_"+Date.now(), word:w[0], category:w[1]}));
+  await saveWords(seeded);
+  await renderAdminWords();
+  toast("Standart ro'yxat tiklandi");
+};
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+/* ================= Home / Lobby creation ================= */
+function genCode(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let c = "";
+  for(let i=0;i<4;i++) c += chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+
+document.getElementById("btnCreateLobby").onclick = async ()=>{
+  const name = document.getElementById("inpName").value.trim();
+  if(!name){ toast("Ismingizni kiriting"); return; }
+  myName = name;
+  let code = genCode();
+  // juda kam ehtimol bilan kolliziyani tekshirish
+  let existing = await sGet("lobby:"+code, true);
+  let tries = 0;
+  while(existing && tries < 5){ code = genCode(); existing = await sGet("lobby:"+code, true); tries++; }
+
+  const lobby = {
+    code, hostId: myId, maxRounds: 2,
+    players: { [myId]: {id:myId, name:myName, color:myColor, score:0} },
+    order: [], phase: "waiting", turnIndex: 0, currentDrawerId: null,
+    wordChoices: [], chosenWord: "", usedWords: [],
+    turnStartTime: 0, turnDuration: TURN_DURATION,
+    strokes: [], correctGuessers: [], chat: [],
+    createdAt: Date.now()
+  };
+  await sSet("lobby:"+code, JSON.stringify(lobby), true);
+  roomCode = code; isHost = true;
+  enterLobbyScreen();
+};
+
+document.getElementById("btnJoinLobby").onclick = async ()=>{
+  const name = document.getElementById("inpName").value.trim();
+  const codeRaw = document.getElementById("inpJoinCode").value.trim().toUpperCase();
+  if(!name){ toast("Ismingizni kiriting"); return; }
+  if(!codeRaw){ toast("Xona kodini kiriting"); return; }
+  myName = name;
+  const raw = await sGet("lobby:"+codeRaw, true);
+  if(!raw){ toast("❌ Bunday xona topilmadi"); return; }
+  let lobby;
+  try{ lobby = JSON.parse(raw); }catch(e){ toast("Xatolik yuz berdi"); return; }
+  if(lobby.phase !== "waiting"){ toast("O'yin allaqachon boshlangan"); return; }
+  lobby.players[myId] = {id:myId, name:myName, color:myColor, score:0};
+  await sSet("lobby:"+codeRaw, JSON.stringify(lobby), true);
+  roomCode = codeRaw; isHost = (lobby.hostId === myId);
+  enterLobbyScreen();
+};
+
+function enterLobbyScreen(){
+  showScreen("lobby");
+  document.getElementById("lobbyCodeDisplay").textContent = roomCode;
+  document.getElementById("hostSettingsCard").style.display = isHost ? "block" : "none";
+  document.getElementById("waitingHostNote").style.display = isHost ? "none" : "block";
+  startLobbyPolling();
+}
+
+document.getElementById("btnCopyCode").onclick = ()=>{
+  navigator.clipboard && navigator.clipboard.writeText(roomCode).then(()=>toast("Kod nusxalandi!"));
+};
+
+document.getElementById("btnLeaveLobby").onclick = async ()=>{
+  stopAllTimers();
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(raw){
+    try{
+      const lobby = JSON.parse(raw);
+      delete lobby.players[myId];
+      await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+    }catch(e){}
+  }
+  showScreen("home");
+};
+
+/* ================= Lobby realtime sync ================= */
+let lobbyWatchRef = null;
+let hostTickTimer = null;
+function startLobbyPolling(){
+  stopAllTimers();
+  lobbyWatchRef = watchKey("lobby:"+roomCode, raw => {
+    if(!raw) return;
+    let lobby;
+    try{ lobby = JSON.parse(raw); }catch(e){ return; }
+    lastLobby = lobby;
+
+    if(!lobby.players[myId] && lobby.phase !== "finished"){
+      // biz xonadan chetlashtirilgan yoki xona tozalangan
+      return;
+    }
+
+    if(lobby.phase === "waiting"){
+      renderLobbyWaiting(lobby);
+    } else if(lobby.phase === "finished"){
+      renderEndScreen(lobby);
+    } else {
+      renderGameScreen(lobby);
+    }
+  });
+  // Host client checks timers (turn expiry etc.) even when no data changed
+  hostTickTimer = setInterval(()=>{
+    if(isHost && lastLobby) runHostAuthority(lastLobby);
+  }, 1000);
+}
+function stopAllTimers(){
+  unwatch(lobbyWatchRef); lobbyWatchRef = null;
+  if(hostTickTimer){ clearInterval(hostTickTimer); hostTickTimer = null; }
+  if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+}
+
+function renderLobbyWaiting(lobby){
+  if(document.getElementById("screen-lobby").classList.contains("active") === false){
+    showScreen("lobby");
+  }
+  document.getElementById("lobbyCodeDisplay").textContent = lobby.code;
+  const list = document.getElementById("lobbyPlayersList");
+  const ids = Object.keys(lobby.players);
+  document.getElementById("playerCount").textContent = ids.length;
+  list.innerHTML = "";
+  ids.forEach(pid=>{
+    const p = lobby.players[pid];
+    const row = document.createElement("div");
+    row.className = "player-row";
+    row.innerHTML = `<div class="avatar" style="background:${p.color}">${p.name.slice(0,1).toUpperCase()}</div>
+      <div class="player-name">${escapeHtml(p.name)}${pid===lobby.hostId?'<span class="host-tag">HOST</span>':''}</div>`;
+    list.appendChild(row);
+  });
+  const startBtn = document.getElementById("btnStartGame");
+  if(isHost) startBtn.disabled = ids.length < 2;
+}
+
+document.getElementById("btnStartGame").onclick = async ()=>{
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(!raw) return;
+  const lobby = JSON.parse(raw);
+  const ids = Object.keys(lobby.players);
+  if(ids.length < 2){ toast("Kamida 2 o'yinchi kerak"); return; }
+  lobby.maxRounds = parseInt(document.getElementById("selRounds").value, 10);
+  lobby.order = shuffle(ids);
+  lobby.turnIndex = 0;
+  lobby.usedWords = [];
+  await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+  await startTurn(roomCode, 0);
+};
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+/* ================= Turn engine (driven by host client) ================= */
+async function startTurn(code, idx){
+  const raw = await sGet("lobby:"+code, true);
+  if(!raw) return;
+  const lobby = JSON.parse(raw);
+  const order = lobby.order;
+  if(!order || order.length===0) return;
+  const totalTurns = order.length * lobby.maxRounds;
+  if(idx >= totalTurns){
+    lobby.phase = "finished";
+    await sSet("lobby:"+code, JSON.stringify(lobby), true);
+    return;
+  }
+  const drawerId = order[idx % order.length];
+  const words = await getWords();
+  const available = words.filter(w => !(lobby.usedWords||[]).includes(w.word));
+  const pool = available.length >= 3 ? available : words;
+  const choices = shuffle(pool).slice(0,3).map(w=>w.word);
+
+  lobby.turnIndex = idx;
+  lobby.currentDrawerId = drawerId;
+  lobby.phase = "choosing";
+  lobby.wordChoices = choices;
+  lobby.chosenWord = "";
+  lobby.strokes = [];
+  lobby.correctGuessers = [];
+  lobby.chat = (lobby.chat||[]).slice(-8); // eskilarni saqlab qolamiz lekin cheklaymiz
+  lobby.chat.push({sys:true, text:`Navbat: ${lobby.players[drawerId]?lobby.players[drawerId].name:'???'} chizadi (Raund ${Math.floor(idx/order.length)+1}/${lobby.maxRounds})`, ts:Date.now()});
+  lobby.choosingStartTime = Date.now();
+  await sSet("lobby:"+code, JSON.stringify(lobby), true);
+}
+
+async function pickWord(word){
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(!raw) return;
+  const lobby = JSON.parse(raw);
+  if(lobby.phase !== "choosing" || lobby.currentDrawerId !== myId) return;
+  lobby.chosenWord = word;
+  lobby.usedWords = (lobby.usedWords||[]).concat([word]);
+  lobby.phase = "drawing";
+  lobby.turnStartTime = Date.now();
+  await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+  document.getElementById("wordChoiceModal").classList.remove("active");
+}
+
+async function submitGuess(){
+  const inp = document.getElementById("inpGuess");
+  const text = inp.value.trim();
+  if(!text) return;
+  inp.value = "";
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(!raw) return;
+  const lobby = JSON.parse(raw);
+  if(lobby.phase !== "drawing") return;
+  if(lobby.currentDrawerId === myId) return;
+  if((lobby.correctGuessers||[]).includes(myId)){
+    lobby.chat = lobby.chat || [];
+    lobby.chat.push({playerId:myId, name:myName, text, correct:false, ts:Date.now()});
+    await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+    return;
+  }
+  const isCorrect = text.toLowerCase() === (lobby.chosenWord||"").toLowerCase();
+  lobby.chat = lobby.chat || [];
+  if(isCorrect){
+    const elapsed = (Date.now() - lobby.turnStartTime)/1000;
+    const pts = Math.max(20, Math.round(100 - elapsed*1.1));
+    lobby.players[myId].score = (lobby.players[myId].score||0) + pts;
+    if(lobby.players[lobby.currentDrawerId]){
+      lobby.players[lobby.currentDrawerId].score = (lobby.players[lobby.currentDrawerId].score||0) + 25;
+    }
+    lobby.correctGuessers = (lobby.correctGuessers||[]).concat([myId]);
+    lobby.chat.push({sys:true, correct:true, text:`✅ ${myName} so'zni topdi! (+${pts})`, ts:Date.now()});
+  } else {
+    lobby.chat.push({playerId:myId, name:myName, text, correct:false, ts:Date.now()});
+  }
+  await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+}
+
+// Host authority: timer expiry, auto word pick, turn-end -> next turn
+let hostBusy = false;
+async function runHostAuthority(lobby){
+  if(hostBusy) return;
+  const now = Date.now();
+  if(lobby.phase === "choosing"){
+    const elapsed = (now - (lobby.choosingStartTime||now))/1000;
+    if(elapsed > CHOOSING_DURATION){
+      hostBusy = true;
+      const raw = await sGet("lobby:"+roomCode, true);
+      const fresh = JSON.parse(raw);
+      if(fresh.phase === "choosing"){
+        const w = (fresh.wordChoices||["so'z"])[0];
+        fresh.chosenWord = w;
+        fresh.usedWords = (fresh.usedWords||[]).concat([w]);
+        fresh.phase = "drawing";
+        fresh.turnStartTime = Date.now();
+        await sSet("lobby:"+roomCode, JSON.stringify(fresh), true);
+      }
+      hostBusy = false;
+    }
+  } else if(lobby.phase === "drawing"){
+    const elapsed = (now - (lobby.turnStartTime||now))/1000;
+    const nonDrawerCount = Object.keys(lobby.players).length - 1;
+    const allGuessed = nonDrawerCount>0 && (lobby.correctGuessers||[]).length >= nonDrawerCount;
+    if(elapsed > lobby.turnDuration || allGuessed){
+      hostBusy = true;
+      const raw = await sGet("lobby:"+roomCode, true);
+      const fresh = JSON.parse(raw);
+      if(fresh.phase === "drawing"){
+        fresh.phase = "turnEnd";
+        fresh.chat = fresh.chat || [];
+        fresh.chat.push({sys:true, text:`⏱️ Vaqt tugadi! So'z: "${fresh.chosenWord}" edi.`, ts:Date.now()});
+        fresh.turnEndTime = Date.now();
+        await sSet("lobby:"+roomCode, JSON.stringify(fresh), true);
+      }
+      hostBusy = false;
+    }
+  } else if(lobby.phase === "turnEnd"){
+    const elapsed = (now - (lobby.turnEndTime||now))/1000;
+    if(elapsed > 3){
+      hostBusy = true;
+      await startTurn(roomCode, (lobby.turnIndex||0) + 1);
+      hostBusy = false;
+    }
+  }
+}
+
+/* ================= Game screen render ================= */
+let currentPhaseSeen = null;
+function renderGameScreen(lobby){
+  showScreen("game");
+  const order = lobby.order || [];
+  const round = order.length ? Math.floor((lobby.turnIndex||0)/order.length)+1 : 1;
+  document.getElementById("roundBadge").textContent = `Raund ${round}/${lobby.maxRounds}`;
+
+  // timer
+  let remain = 0, total = 1;
+  if(lobby.phase === "choosing"){
+    total = CHOOSING_DURATION;
+    remain = Math.max(0, total - (Date.now()-(lobby.choosingStartTime||Date.now()))/1000);
+  } else if(lobby.phase === "drawing"){
+    total = lobby.turnDuration;
+    remain = Math.max(0, total - (Date.now()-(lobby.turnStartTime||Date.now()))/1000);
+  }
+  const pct = Math.round((remain/total)*100);
+  document.getElementById("timerRing").style.setProperty('--pct', pct);
+  document.getElementById("timerText").textContent = Math.ceil(remain);
+
+  const drawer = lobby.players[lobby.currentDrawerId];
+  const amDrawer = lobby.currentDrawerId === myId;
+  document.getElementById("drawerNote").textContent = amDrawer ? "Siz chizyapsiz! 🖌️" : (drawer ? `${drawer.name} chizmoqda...` : "");
+
+  const wb = document.getElementById("wordBanner");
+  if(lobby.phase === "choosing"){
+    wb.textContent = amDrawer ? "So'z tanlanmoqda..." : "So'z tanlanmoqda...";
+    wb.className = "word-banner";
+  } else {
+    const word = lobby.chosenWord || "";
+    if(amDrawer || lobby.phase==="turnEnd"){
+      wb.textContent = word;
+      wb.className = "word-banner mine";
+    } else {
+      wb.textContent = word.split("").map(ch=> ch===" " ? "  " : "_").join(" ");
+      wb.className = "word-banner";
+    }
+  }
+
+  document.getElementById("toolbar").style.display = (amDrawer && lobby.phase==="drawing") ? "flex" : "none";
+  document.getElementById("guessInputRow").style.display = (!amDrawer && lobby.phase==="drawing") ? "flex" : "none";
+
+  // canvas sync
+  syncCanvas(lobby);
+
+  // word choice modal
+  const modal = document.getElementById("wordChoiceModal");
+  if(amDrawer && lobby.phase === "choosing"){
+    if(!modal.classList.contains("active")){
+      const btnWrap = document.getElementById("wordChoiceButtons");
+      btnWrap.innerHTML = "";
+      (lobby.wordChoices||[]).forEach(w=>{
+        const b = document.createElement("button");
+        b.className = "word-choice-btn";
+        b.textContent = w;
+        b.onclick = ()=> pickWord(w);
+        btnWrap.appendChild(b);
+      });
+      modal.classList.add("active");
+    }
+  } else {
+    modal.classList.remove("active");
+  }
+
+  // scoreboard
+  const strip = document.getElementById("scoreboardStrip");
+  strip.innerHTML = "";
+  Object.values(lobby.players).sort((a,b)=>(b.score||0)-(a.score||0)).forEach(p=>{
+    const chip = document.createElement("div");
+    chip.className = "score-chip";
+    chip.innerHTML = `<div class="avatar" style="width:20px;height:20px;font-size:10px;background:${p.color}">${p.name.slice(0,1).toUpperCase()}</div> ${escapeHtml(p.name)}: ${p.score||0}`;
+    strip.appendChild(chip);
+  });
+
+  // chat
+  renderChat(lobby);
+  currentPhaseSeen = lobby.phase;
+}
+
+function renderChat(lobby){
+  const scroll = document.getElementById("chatScroll");
+  const atBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 10;
+  scroll.innerHTML = "";
+  (lobby.chat||[]).slice(-30).forEach(m=>{
+    const div = document.createElement("div");
+    if(m.sys){
+      div.className = "chat-msg " + (m.correct ? "correct" : "system");
+      div.textContent = m.text;
+    } else {
+      div.className = "chat-msg";
+      div.innerHTML = `<span class="nm">${escapeHtml(m.name)}:</span> ${escapeHtml(m.text)}`;
+    }
+    scroll.appendChild(div);
+  });
+  if(atBottom) scroll.scrollTop = scroll.scrollHeight;
+}
+
+document.getElementById("btnSendGuess").onclick = submitGuess;
+document.getElementById("inpGuess").addEventListener("keydown", e=>{ if(e.key==="Enter") submitGuess(); });
+
+/* ================= Canvas drawing =================
+   All points/sizes are stored as FRACTIONS (0-1) of the canvas's CSS size,
+   not raw pixels. This is what makes drawings line up identically across
+   phones, tablets, and desktops regardless of their actual screen size. */
+const canvas = document.getElementById("drawCanvas");
+const ctx = canvas.getContext("2d");
+let currentTool = "brush"; // "brush" | "fill"
+
+function resizeCanvas(){
+  const wrap = document.getElementById("canvasWrap");
+  const rect = wrap.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = rect.width * ratio;
+  canvas.height = rect.height * ratio;
+  ctx.setTransform(ratio,0,0,ratio,0,0);
+  redrawAllStrokes(lastLobby ? lastLobby.strokes : []);
+}
+window.addEventListener("resize", resizeCanvas);
+window.addEventListener("orientationchange", ()=> setTimeout(resizeCanvas, 300));
+
+function getPos(e){
+  const rect = canvas.getBoundingClientRect();
+  const touch = (e.touches && e.touches[0]) ? e.touches[0] : e;
+  return {
+    x: Math.min(1, Math.max(0, (touch.clientX - rect.left) / rect.width)),
+    y: Math.min(1, Math.max(0, (touch.clientY - rect.top) / rect.height))
+  };
+}
+function fracToCss(pt){
+  const rect = canvas.getBoundingClientRect();
+  return [pt[0]*rect.width, pt[1]*rect.height];
+}
+function canDrawNow(){
+  return lastLobby && lastLobby.phase==="drawing" && lastLobby.currentDrawerId===myId;
+}
+canvas.addEventListener("mousedown", handlePointerDown);
+canvas.addEventListener("touchstart", handlePointerDown, {passive:false});
+canvas.addEventListener("mousemove", moveStroke);
+canvas.addEventListener("touchmove", moveStroke, {passive:false});
+window.addEventListener("mouseup", endStroke);
+canvas.addEventListener("touchend", endStroke);
+
+function handlePointerDown(e){
+  if(!canDrawNow()) return;
+  e.preventDefault();
+  const p = getPos(e);
+  if(currentTool === "fill"){
+    doFill(p);
+    return;
+  }
+  drawing = true;
+  currentStroke = { type:"stroke", points:[[p.x,p.y]], color: brushColor, size: brushSize };
+  drawStrokeSegment(currentStroke.points[0], currentStroke.points[0], brushColor, brushSize);
+}
+function moveStroke(e){
+  if(!drawing || currentTool!=="brush" || !canDrawNow()) return;
+  e.preventDefault();
+  const p = getPos(e);
+  const pts = currentStroke.points;
+  const last = pts[pts.length-1];
+  pts.push([p.x,p.y]);
+  drawStrokeSegment(last, [p.x,p.y], currentStroke.color, currentStroke.size);
+}
+async function endStroke(){
+  if(!drawing) return;
+  drawing = false;
+  if(currentStroke && currentStroke.points.length>1){
+    const raw = await sGet("lobby:"+roomCode, true);
+    if(raw){
+      const lobby = JSON.parse(raw);
+      if(lobby.phase==="drawing" && lobby.currentDrawerId===myId){
+        lobby.strokes = lobby.strokes || [];
+        lobby.strokes.push(currentStroke);
+        await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+        renderedStrokeCount = lobby.strokes.length;
+      }
+    }
+  }
+  currentStroke = null;
+}
+async function doFill(p){
+  if(!canDrawNow()) return;
+  floodFillAt([p.x,p.y], brushColor);
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(raw){
+    const lobby = JSON.parse(raw);
+    if(lobby.phase==="drawing" && lobby.currentDrawerId===myId){
+      lobby.strokes = lobby.strokes || [];
+      lobby.strokes.push({type:"fill", point:[p.x,p.y], color: brushColor});
+      await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+      renderedStrokeCount = lobby.strokes.length;
+    }
+  }
+}
+function drawStrokeSegment(p1,p2,color,sizeFrac){
+  const rect = canvas.getBoundingClientRect();
+  const a = fracToCss(p1), b = fracToCss(p2);
+  ctx.strokeStyle = color; ctx.lineWidth = sizeFrac * rect.width; ctx.lineCap = "round"; ctx.lineJoin="round";
+  ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+}
+function drawFullStroke(stroke){
+  if(stroke.type === "fill"){
+    floodFillAt(stroke.point, stroke.color);
+    return;
+  }
+  if(!stroke.points || stroke.points.length===0) return;
+  const rect = canvas.getBoundingClientRect();
+  ctx.strokeStyle = stroke.color; ctx.lineWidth = (stroke.size||0.012) * rect.width; ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.beginPath();
+  const p0 = fracToCss(stroke.points[0]);
+  ctx.moveTo(p0[0], p0[1]);
+  for(let i=1;i<stroke.points.length;i++){ const p=fracToCss(stroke.points[i]); ctx.lineTo(p[0], p[1]); }
+  ctx.stroke();
+}
+function redrawAllStrokes(strokes){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  (strokes||[]).forEach(drawFullStroke);
+  renderedStrokeCount = (strokes||[]).length;
+}
+function syncCanvas(lobby){
+  const strokes = lobby.strokes || [];
+  if(strokes.length < renderedStrokeCount){
+    redrawAllStrokes(strokes);
+  } else if(strokes.length > renderedStrokeCount){
+    for(let i=renderedStrokeCount;i<strokes.length;i++){ drawFullStroke(strokes[i]); }
+    renderedStrokeCount = strokes.length;
+  }
+  if(lobby.phase==="choosing" && strokes.length===0 && renderedStrokeCount!==0){
+    redrawAllStrokes([]);
+  }
+}
+
+/* ---- Flood fill (Zalivka) — operates on raw device pixels ---- */
+function hexToRgba(hex){
+  hex = hex.replace('#','');
+  if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+  const num = parseInt(hex,16);
+  return [(num>>16)&255,(num>>8)&255,num&255,255];
+}
+function colorsMatch(a,b,tol){
+  return Math.abs(a[0]-b[0])<=tol && Math.abs(a[1]-b[1])<=tol && Math.abs(a[2]-b[2])<=tol && Math.abs(a[3]-b[3])<=tol;
+}
+function floodFillAt(fracPoint, colorHex){
+  const w = canvas.width, h = canvas.height;
+  if(w===0 || h===0) return;
+  const px = Math.max(0, Math.min(w-1, Math.floor(fracPoint[0]*w)));
+  const py = Math.max(0, Math.min(h-1, Math.floor(fracPoint[1]*h)));
+  const imgData = ctx.getImageData(0,0,w,h);
+  const data = imgData.data;
+  const startIdx = (py*w+px)*4;
+  const target = [data[startIdx],data[startIdx+1],data[startIdx+2],data[startIdx+3]];
+  const fill = hexToRgba(colorHex);
+  if(colorsMatch(target, fill, 10)) return;
+  const stack = [[px,py]];
+  const tol = 40;
+  let guard = 0;
+  const maxIter = w*h + 10;
+  while(stack.length && guard < maxIter){
+    guard++;
+    const [x,y] = stack.pop();
+    if(x<0||x>=w||y<0||y>=h) continue;
+    const i = (y*w+x)*4;
+    if(!colorsMatch([data[i],data[i+1],data[i+2],data[i+3]], target, tol)) continue;
+    data[i]=fill[0]; data[i+1]=fill[1]; data[i+2]=fill[2]; data[i+3]=255;
+    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+  }
+  ctx.putImageData(imgData,0,0);
+}
+
+/* ---- Preset color dots ---- */
+document.querySelectorAll(".color-dot").forEach(dot=>{
+  dot.addEventListener("click", ()=>{
+    document.querySelectorAll(".color-dot").forEach(d=>d.classList.remove("active"));
+    dot.classList.add("active");
+    document.getElementById("btnOpenWheel").style.boxShadow = "none";
+    brushColor = dot.dataset.color;
+  });
+});
+document.getElementById("btnThin").onclick = ()=>{ brushSize=0.006; setSizeActive("btnThin"); };
+document.getElementById("btnThick").onclick = ()=>{ brushSize=0.016; setSizeActive("btnThick"); };
+function setSizeActive(id){
+  document.getElementById("btnThin").classList.toggle("active", id==="btnThin");
+  document.getElementById("btnThick").classList.toggle("active", id==="btnThick");
+}
+document.getElementById("btnToolBrush").onclick = ()=> setToolMode("brush");
+document.getElementById("btnToolFill").onclick = ()=> setToolMode("fill");
+function setToolMode(tool){
+  currentTool = tool;
+  document.getElementById("btnToolBrush").classList.toggle("active", tool==="brush");
+  document.getElementById("btnToolFill").classList.toggle("active", tool==="fill");
+}
+document.getElementById("btnClearCanvas").onclick = async ()=>{
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(!raw) return;
+  const lobby = JSON.parse(raw);
+  if(lobby.currentDrawerId!==myId) return;
+  lobby.strokes = [];
+  await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+  redrawAllStrokes([]);
+};
+
+/* ---- RGB color wheel ---- */
+function hslToRgb(h,s,l){
+  let r,g,b;
+  if(s===0){ r=g=b=l; }
+  else{
+    const hue2rgb=(p,q,t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; };
+    const q = l<0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l-q;
+    r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);
+  }
+  return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+}
+function rgbToHex(r,g,b){ return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join(""); }
+let wheelDrawn = false;
+function drawColorWheel(){
+  const cnv = document.getElementById("colorWheelCanvas");
+  const wctx = cnv.getContext("2d");
+  const size = cnv.width, cx = size/2, cy = size/2, radius = size/2;
+  const imgData = wctx.createImageData(size,size);
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const dx=x-cx, dy=y-cy;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      const i=(y*size+x)*4;
+      if(dist<=radius){
+        let angle = Math.atan2(dy,dx)*180/Math.PI; if(angle<0) angle+=360;
+        const sat = dist/radius;
+        const [r,g,b] = hslToRgb(angle/360, sat, 0.5);
+        imgData.data[i]=r; imgData.data[i+1]=g; imgData.data[i+2]=b; imgData.data[i+3]=255;
+      } else {
+        imgData.data[i+3]=0;
+      }
+    }
+  }
+  wctx.putImageData(imgData,0,0);
+  wheelDrawn = true;
+}
+function pickFromWheel(e){
+  const cnv = document.getElementById("colorWheelCanvas");
+  const rect = cnv.getBoundingClientRect();
+  const touch = (e.touches && e.touches[0]) ? e.touches[0] : e;
+  const x = Math.floor((touch.clientX-rect.left) * (cnv.width/rect.width));
+  const y = Math.floor((touch.clientY-rect.top) * (cnv.height/rect.height));
+  if(x<0||y<0||x>=cnv.width||y>=cnv.height) return;
+  const d = cnv.getContext("2d").getImageData(x,y,1,1).data;
+  if(d[3]===0) return;
+  brushColor = rgbToHex(d[0],d[1],d[2]);
+  document.querySelectorAll(".color-dot").forEach(dd=>dd.classList.remove("active"));
+  document.getElementById("btnOpenWheel").style.boxShadow = "0 0 0 3px #fff";
+  document.getElementById("colorWheelModal").classList.remove("active");
+}
+document.getElementById("btnOpenWheel").onclick = ()=>{
+  if(!wheelDrawn) drawColorWheel();
+  document.getElementById("colorWheelModal").classList.add("active");
+};
+document.getElementById("btnCloseColorWheel").onclick = ()=> document.getElementById("colorWheelModal").classList.remove("active");
+document.getElementById("colorWheelCanvas").addEventListener("click", pickFromWheel);
+document.getElementById("colorWheelCanvas").addEventListener("touchstart", e=>{ e.preventDefault(); pickFromWheel(e); }, {passive:false});
+
+/* ---- Fullscreen (mobile + desktop) ---- */
+function toggleFullscreen(){
+  const el = document.documentElement;
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+  try{
+    if(!isFs){
+      (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || function(){}).call(el);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
+    }
+  }catch(e){}
+  try{
+    if(window.Telegram && window.Telegram.WebApp){
+      if(typeof window.Telegram.WebApp.requestFullscreen === "function") window.Telegram.WebApp.requestFullscreen();
+      window.Telegram.WebApp.expand();
+    }
+  }catch(e){}
+}
+document.getElementById("btnFullscreen").onclick = toggleFullscreen;
+
+/* ================= End screen ================= */
+function renderEndScreen(lobby){
+  showScreen("end");
+  stopAllTimers();
+  const podium = document.getElementById("podiumList");
+  podium.innerHTML = "";
+  const sorted = Object.values(lobby.players).sort((a,b)=>(b.score||0)-(a.score||0));
+  sorted.forEach((p,i)=>{
+    const row = document.createElement("div");
+    row.className = "podium-row";
+    const rankCls = i===0?"r1":i===1?"r2":i===2?"r3":"";
+    const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)+".";
+    row.innerHTML = `<div class="rank ${rankCls}">${medal}</div>
+      <div class="avatar" style="background:${p.color}">${p.name.slice(0,1).toUpperCase()}</div>
+      <div class="player-name">${escapeHtml(p.name)}</div>
+      <div class="player-score">${p.score||0} ball</div>`;
+    podium.appendChild(row);
+  });
+}
+document.getElementById("btnEndToHome").onclick = async ()=>{
+  stopAllTimers();
+  showScreen("home");
+};
+document.getElementById("btnPlayAgain").onclick = async ()=>{
+  if(!isHost){ toast("Faqat xona egasi qayta boshlashi mumkin"); return; }
+  const raw = await sGet("lobby:"+roomCode, true);
+  if(!raw) return;
+  const lobby = JSON.parse(raw);
+  Object.values(lobby.players).forEach(p=> p.score = 0);
+  lobby.phase = "waiting";
+  lobby.turnIndex = 0;
+  lobby.order = [];
+  lobby.strokes = [];
+  lobby.chat = [];
+  lobby.usedWords = [];
+  await sSet("lobby:"+roomCode, JSON.stringify(lobby), true);
+  enterLobbyScreen();
+};
+
+/* ================= Init ================= */
+(async function init(){
+  await ensureWordsSeeded();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
