@@ -1,3 +1,4 @@
+using System.Net.Http;
 using AGLauncher.Models;
 using System.Diagnostics;
 using System.IO.Compression;
